@@ -1,0 +1,6 @@
+{
+  "name": "Game Night Ledger",
+  "description": "A web application to track wins, losses, and money for your game nights. Easily manage players, buy-ins, and view a running ledger of who owes what.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
