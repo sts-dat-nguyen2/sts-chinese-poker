@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Game, GameStatus, PlayerOutcome } from '../types';
-import { TipHistoryItem } from '../services/apiService';
 import {
   TrophyIcon,
   ShieldExclamationIcon,
@@ -13,17 +12,12 @@ import {
   ArrowTrendingDownIcon,
   BanknotesIcon,
   ReceiptPercentIcon,
-  ScaleIcon,
-  TrashIcon,
-  GiftIcon
+  ScaleIcon
 } from '@heroicons/react/24/solid';
 import { formatCurrency } from '../utils/currency';
 
 interface GameHistoryProps {
   games: Game[];
-  tips: TipHistoryItem[];
-  isCreator?: boolean;
-  onRevertGame?: (gameId: number) => Promise<void>;
 }
 
 interface StatusBadgeProps {
@@ -98,38 +92,17 @@ const GameCardDetails: React.FC<{ game: Game }> = ({ game }) => {
     );
 }
 
-const GameCard: React.FC<{ game: Game; isCreator?: boolean; onRevert?: (gameId: number) => Promise<void> }> = ({ game, isCreator, onRevert }) => {
+const GameCard: React.FC<{ game: Game }> = ({ game }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const handleRevert = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm(`Are you sure you want to revert this game? This will delete the game and all its transactions. This action cannot be undone.`)) {
-      if (onRevert) {
-        await onRevert(parseInt(game.id));
-      }
-    }
-  };
 
   return (
     <div className="bg-gray-800 rounded-xl shadow-lg p-5 transition-all hover:shadow-xl hover:bg-gray-700/50">
       <div className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex justify-between items-start mb-4">
           <StatusBadge status={game.status} winner={game.winner} potWon={game.potWon} />
-          <div className="flex items-center gap-3 text-sm text-gray-400">
-            <div className="flex items-center">
-              <CalendarDaysIcon className="h-4 w-4 mr-1.5" />
-              {new Date(game.createdAt).toLocaleDateString()}
-            </div>
-            {isCreator && onRevert && (
-              <button
-                onClick={handleRevert}
-                className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors"
-                title="Revert this game"
-              >
-                <TrashIcon className="h-3.5 w-3.5" />
-                Revert
-              </button>
-            )}
+          <div className="flex items-center text-sm text-gray-400">
+            <CalendarDaysIcon className="h-4 w-4 mr-1.5" />
+            {new Date(game.createdAt).toLocaleDateString()}
           </div>
         </div>
 
@@ -188,70 +161,22 @@ const GameCard: React.FC<{ game: Game; isCreator?: boolean; onRevert?: (gameId: 
   );
 };
 
-const TipCard: React.FC<{ tip: TipHistoryItem }> = ({ tip }) => {
-  return (
-    <div className="bg-gray-800 rounded-xl shadow-lg p-4 transition-all hover:shadow-xl hover:bg-gray-700/50">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-green-600/20 p-2 rounded-lg">
-            <GiftIcon className="h-5 w-5 text-green-400" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-400">
-              <span className="font-semibold text-green-300">{tip.from_player}</span>
-              {' → '}
-              <span className="font-semibold text-blue-300">{tip.to_player}</span>
-            </p>
-            <p className="text-xs text-gray-500">
-              {new Date(tip.created_at).toLocaleString()}
-            </p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-lg font-bold text-green-400">{formatCurrency(Number(tip.amount))}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const GameHistory: React.FC<GameHistoryProps> = ({ games, tips, isCreator, onRevertGame }) => {
-  const hasGames = games.length > 0;
-  const hasTips = tips.length > 0;
-
-  if (!hasGames && !hasTips) {
+const GameHistory: React.FC<GameHistoryProps> = ({ games }) => {
+  if (games.length === 0) {
     return (
       <div className="text-center py-16 px-6 bg-gray-800 rounded-xl shadow-lg">
-        <h3 className="text-2xl font-bold text-white">No History Yet</h3>
-        <p className="text-gray-400 mt-2">Start a new game or send a tip to see history here.</p>
+        <h3 className="text-2xl font-bold text-white">No Games Played Yet</h3>
+        <p className="text-gray-400 mt-2">Start a new game to see its history here.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {hasGames && (
-        <div>
-          <h2 className="text-3xl font-bold text-center text-white mb-8">Game History</h2>
-          <div className="space-y-6">
-            {games.map(game => <GameCard key={game.id} game={game} isCreator={isCreator} onRevert={onRevertGame} />)}
-          </div>
+    <div>
+        <h2 className="text-3xl font-bold text-center text-white mb-8">Game History</h2>
+        <div className="space-y-6">
+            {games.map(game => <GameCard key={game.id} game={game} />)}
         </div>
-      )}
-
-      {hasTips && (
-        <div>
-          <h2 className="text-3xl font-bold text-center text-white mb-8">
-            <span className="flex items-center justify-center gap-2">
-              <GiftIcon className="h-8 w-8 text-green-400" />
-              Tip History
-            </span>
-          </h2>
-          <div className="space-y-3">
-            {tips.map((tip, index) => <TipCard key={`${tip.from_player}-${tip.to_player}-${tip.created_at}-${index}`} tip={tip} />)}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

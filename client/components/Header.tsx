@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { View } from '../types';
-import { TrophyIcon, ListBulletIcon, ChartBarIcon, PlusIcon, ArrowPathIcon, PlayIcon, ArrowLeftOnRectangleIcon, ShareIcon, ClipboardDocumentCheckIcon, GiftIcon } from '@heroicons/react/24/solid';
+import { TrophyIcon, ListBulletIcon, ChartBarIcon, PlusIcon, ArrowPathIcon, PlayIcon, ArrowLeftOnRectangleIcon, ShareIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/solid';
 
 interface HeaderProps {
   activeView: View;
   onNavigate: (view: View) => void;
   onReset: () => void;
   onNewGame: () => void;
-  onTip: () => void;
   isGameInProgress: boolean;
   isCreator: boolean;
   sessionName?: string;
@@ -40,7 +39,6 @@ const Header: React.FC<HeaderProps> = ({
   onNavigate,
   onReset,
   onNewGame,
-  onTip,
   isGameInProgress,
   isCreator,
   sessionName,
@@ -160,23 +158,13 @@ const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center space-x-2">
           {isCreator && (
-            <>
-              <button
-                onClick={onTip}
-                className="flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 bg-green-600/20 text-green-400 hover:bg-green-600/40 hover:text-green-300"
-                title="Send a tip"
-              >
-                <GiftIcon className="h-5 w-5" />
-                <span className="hidden md:inline">Tip</span>
-              </button>
-              <button
-                onClick={onReset}
-                className="flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 bg-red-600/20 text-red-400 hover:bg-red-600/40 hover:text-red-300"
-              >
-                <ArrowPathIcon className="h-5 w-5" />
-                <span className="hidden md:inline">Reset Data</span>
-              </button>
-            </>
+            <button
+              onClick={onReset}
+              className="flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 bg-red-600/20 text-red-400 hover:bg-red-600/40 hover:text-red-300"
+            >
+              <ArrowPathIcon className="h-5 w-5" />
+              <span className="hidden md:inline">Reset Data</span>
+            </button>
           )}
 
           <button

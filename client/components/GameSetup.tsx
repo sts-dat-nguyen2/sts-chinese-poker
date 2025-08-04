@@ -1,17 +1,27 @@
 
 import React, { useState, useCallback } from 'react';
-import { PlusIcon, TrashIcon, UserGroupIcon, CurrencyDollarIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, TrashIcon, UserGroupIcon, BanknotesIcon } from '@heroicons/react/24/solid';
 
 interface GameSetupProps {
   onStartGame: (players: string[], buyIn: number) => void;
   potRollover: number;
   lastPlayers: string[];
+  isLoading?: boolean;
+  error?: string | null;
 }
 
-const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, potRollover, lastPlayers }) => {
+const GameSetup: React.FC<GameSetupProps> = ({
+  onStartGame,
+  potRollover,
+  lastPlayers,
+  isLoading = false,
+  error: externalError = null
+}) => {
   const [players, setPlayers] = useState<string[]>(lastPlayers.length > 0 ? lastPlayers : ['', '']);
-  const [buyIn, setBuyIn] = useState<string>('10');
-  const [error, setError] = useState<string>('');
+  const [buyIn, setBuyIn] = useState<string>('2000');
+  const [localError, setLocalError] = useState<string>('');
+
+  const error = externalError || localError;
 
   const handlePlayerChange = (index: number, value: string) => {
     const newPlayers = [...players];
@@ -32,23 +42,23 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, potRollover, lastPla
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setLocalError('');
     const validatedPlayers = players.map(p => p.trim()).filter(p => p.length > 0);
-    
+
     if (validatedPlayers.length < 2) {
-      setError('Please enter at least two players.');
+      setLocalError('Please enter at least two players.');
       return;
     }
-    
+
     const uniquePlayers = new Set(validatedPlayers);
     if (uniquePlayers.size !== validatedPlayers.length) {
-      setError('Player names must be unique.');
+      setLocalError('Player names must be unique.');
       return;
     }
 
     const buyInAmount = parseFloat(buyIn);
-    if (isNaN(buyInAmount) || buyInAmount <= 0) {
-      setError('Please enter a valid buy-in amount greater than zero.');
+    if (isNaN(buyInAmount) || buyInAmount < 1000) {
+      setLocalError('Please enter a valid buy-in amount (minimum 1,000 ₫).');
       return;
     }
 
@@ -59,10 +69,10 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, potRollover, lastPla
     <div className="max-w-2xl mx-auto bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8">
       <h2 className="text-3xl font-bold text-center text-white mb-2">Start a New Game</h2>
       <p className="text-center text-gray-400 mb-8">Enter player names and the buy-in amount to begin.</p>
-      
+
       {potRollover > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-center p-3 rounded-lg mb-6">
-          <p>A rollover of <span className="font-bold">${potRollover.toFixed(2)}</span> from the last draw will be added to this game's pot.</p>
+          <p>A rollover of <span className="font-bold">{(Number(potRollover) || 0).toLocaleString()} ₫</span> from the last draw will be added to this game's pot.</p>
         </div>
       )}
 
@@ -105,23 +115,25 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, potRollover, lastPla
 
         <div>
            <label htmlFor="buy-in" className="flex items-center text-lg font-medium text-gray-300 mb-2">
-            <CurrencyDollarIcon className="h-6 w-6 mr-2 text-green-400" />
+            <BanknotesIcon className="h-6 w-6 mr-2 text-green-400" />
             Buy-In Amount (per player)
           </label>
           <div className="relative">
-             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <span className="text-gray-400 sm:text-sm">$</span>
+             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <span className="text-gray-400 sm:text-sm">₫</span>
             </div>
             <input
               id="buy-in"
               type="number"
               value={buyIn}
               onChange={(e) => setBuyIn(e.target.value)}
-              step="0.01"
-              min="0.01"
-              className="w-full bg-gray-900 border-2 border-gray-700 rounded-md p-3 pl-7 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              step="1000"
+              min="1000"
+              placeholder="2000"
+              className="w-full bg-gray-900 border-2 border-gray-700 rounded-md p-3 pr-8 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
             />
           </div>
+          <p className="text-xs text-gray-500 mt-1">Minimum 1,000 ₫ • Common amounts: 2,000, 5,000, 10,000</p>
         </div>
 
         {error && <p className="text-red-400 text-center bg-red-900/50 p-3 rounded-md">{error}</p>}

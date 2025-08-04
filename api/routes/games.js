@@ -3,10 +3,17 @@ const express = require('express');
 const router = express.Router();
 const gameController = require('../controllers/gameController');
 
-// GET /api/games - Fetches the entire game history
-router.get('/', gameController.getGameHistory);
+// GET /api/games/:sessionCode/history - Fetches game history for a session
+router.get('/:sessionCode/history', gameController.getGameHistory);
 
-// Other routes like POST / and POST /:id/finalize will be added here.
+// GET /api/games/:sessionCode/state - Gets current session state (current game + ledger)
+router.get('/:sessionCode/state', gameController.getSessionState);
+
+// POST /api/games/:sessionCode - Creates a new game in a session
+router.post('/:sessionCode', gameController.createGame);
+
+// PUT /api/games/:sessionCode/:gameId/finalize - Finalizes a game with outcome
+router.put('/:sessionCode/:gameId/finalize', gameController.finalizeGame);
 
 // DELETE /api/games/:sessionCode/:gameId - Reverts/deletes a game and its transactions
 router.delete('/:sessionCode/:gameId', gameController.revertGame);

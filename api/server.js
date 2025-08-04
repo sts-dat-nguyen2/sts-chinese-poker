@@ -4,6 +4,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const gameRoutes = require('./routes/games');
+const sessionRoutes = require('./routes/sessions');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- API Routes ---
+app.use('/api/sessions', sessionRoutes);
 app.use('/api/games', gameRoutes);
 
 // --- Root Endpoint ---

@@ -1,12 +1,11 @@
 // hooks/useGameState.ts
 import { useState, useEffect, useCallback } from 'react';
 import { Game, PlayerLedger, GameOutcome } from '../types';
-import { gameApi, ApiError, SessionState, GameHistoryItem, TipHistoryItem } from '../services/apiService';
+import { gameApi, ApiError, SessionState, GameHistoryItem } from '../services/apiService';
 
 export const useGameState = (sessionCode: string | null, isCreator: boolean) => {
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [gameHistory, setGameHistory] = useState<GameHistoryItem[]>([]);
-  const [tipHistory, setTipHistory] = useState<TipHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,19 +50,6 @@ export const useGameState = (sessionCode: string | null, isCreator: boolean) => 
       }
     } finally {
       setIsLoading(false);
-    }
-  }, [sessionCode]);
-
-  // Load tip history
-  const loadTipHistory = useCallback(async () => {
-    if (!sessionCode) return;
-
-    try {
-      const tips = await gameApi.getTipHistory(sessionCode);
-      setTipHistory(tips);
-    } catch (err) {
-      // Don't set error for tips - they're optional
-      console.error('Failed to load tip history:', err);
     }
   }, [sessionCode]);
 
@@ -135,76 +121,13 @@ export const useGameState = (sessionCode: string | null, isCreator: boolean) => 
     }
   };
 
-  // Revert/delete a game
-  const revertGame = async (gameId: number) => {
-    if (!sessionCode || !isCreator) {
-      setError('Not authorized to revert games');
-      return;
-    }
-
-    setIsLoading(true);
-    clearError();
-
-    try {
-      await gameApi.revertGame(sessionCode, gameId);
-
-      // Refresh both session state and history
-      await Promise.all([loadSessionState(), loadGameHistory()]);
-
-      return true;
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to revert game');
-      }
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Create a tip from one player to another
-  const createTip = async (fromPlayer: string, toPlayer: string, amount: number) => {
-    if (!sessionCode || !isCreator) {
-      setError('Not authorized to create tips');
-      return;
-    }
-
-    setIsLoading(true);
-    clearError();
-
-    try {
-      await gameApi.createTip(sessionCode, {
-        fromPlayer,
-        toPlayer,
-        amount,
-      });
-
-      // Refresh session state and tip history
-      await Promise.all([loadSessionState(), loadTipHistory()]);
-
-      return true;
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to create tip');
-      }
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Initial load when sessionCode becomes available
   useEffect(() => {
     if (sessionCode) {
       loadSessionState();
       loadGameHistory();
-      loadTipHistory();
     }
-  }, [sessionCode, loadSessionState, loadGameHistory, loadTipHistory]);
+  }, [sessionCode, loadSessionState, loadGameHistory]);
 
   // Derived values for compatibility with existing components
   const currentGame: Game | null = sessionState?.currentGame ? {
@@ -250,14 +173,11 @@ export const useGameState = (sessionCode: string | null, isCreator: boolean) => 
     playerLedger,
     potRollover,
     completedGames,
-    tipHistory,
     isLoading,
     error,
     clearError,
     createGame,
     finalizeGame,
-    revertGame,
-    createTip,
-    refreshData: () => Promise.all([loadSessionState(), loadGameHistory(), loadTipHistory()]),
+    refreshData: () => Promise.all([loadSessionState(), loadGameHistory()]),
   };
 };

@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Game, GameOutcome, GameStatus, OutcomeType } from '../types';
 import { TrophyIcon, ShieldExclamationIcon, HandRaisedIcon, PencilIcon, UserCircleIcon } from '@heroicons/react/24/solid';
+import { formatCurrency } from '../utils/currency';
 
 interface GameFinalizationProps {
   game: Game;
@@ -62,7 +63,7 @@ const GameFinalization: React.FC<GameFinalizationProps> = ({ game, onFinalize })
         }
         finalOutcome = { status: GameStatus.COMPLETED, winner, notes };
         break;
-      
+
       case OutcomeType.WINNER_WITH_PENALTY:
         if (!winner) {
           setError('Please select a winner.');
@@ -78,23 +79,23 @@ const GameFinalization: React.FC<GameFinalizationProps> = ({ game, onFinalize })
       case OutcomeType.DRAW:
         finalOutcome = { status: GameStatus.DRAW, notes };
         break;
-        
+
       default:
           return;
     }
     onFinalize(finalOutcome);
   };
-  
+
 
   return (
     <div className="max-w-2xl mx-auto bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8">
       <h2 className="text-3xl font-bold text-center text-white mb-2">Finalize Game</h2>
       <p className="text-center text-gray-400 mb-8">Declare the outcome of the game.</p>
-      
+
       <div className="bg-gray-900 p-4 rounded-lg mb-6 text-center">
         <p className="text-gray-400">Total Pot</p>
-        <p className="text-4xl font-bold text-green-400">${totalPot.toFixed(2)}</p>
-        {game.potRollover > 0 && <p className="text-sm text-yellow-400">(includes ${game.potRollover.toFixed(2)} rollover)</p>}
+        <p className="text-4xl font-bold text-green-400">{formatCurrency(totalPot)}</p>
+        {game.potRollover > 0 && <p className="text-sm text-yellow-400">(includes {formatCurrency(game.potRollover)} rollover)</p>}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -150,24 +151,26 @@ const GameFinalization: React.FC<GameFinalizationProps> = ({ game, onFinalize })
                 </button>
               ))}
             </div>
-            <p className="text-sm text-yellow-400 mt-2">Each penalized player pays an extra ${penaltyAmount.toFixed(2)} to the winner.</p>
+            <p className="text-sm text-yellow-400 mt-2">Each penalized player pays an extra {formatCurrency(penaltyAmount)} to the winner.</p>
           </div>
         )}
 
-        {outcomeType !== OutcomeType.DRAW && winner && (
+                {outcomeType !== OutcomeType.DRAW && winner && (
              <div className="bg-green-900/50 p-4 rounded-lg text-center">
                 <p className="text-green-300 font-medium">{winner} wins</p>
-                <p className="text-2xl font-bold text-white">${winnerPot.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(winnerPot)}</p>
                 {penalizedPlayers.length > 0 && outcomeType === OutcomeType.WINNER_WITH_PENALTY && (
-                    <p className="text-sm text-green-200">(includes ${ (penalizedPlayers.length * penaltyAmount).toFixed(2) } from penalties)</p>
+                    <p className="text-sm text-green-200">
+                        ({formatCurrency(totalPot)} pot + {formatCurrency(penalizedPlayers.length * penaltyAmount)} from penalties)
+                    </p>
                 )}
             </div>
         )}
-        
+
         {outcomeType === OutcomeType.DRAW && (
             <div className="bg-yellow-900/50 p-4 rounded-lg text-center">
                 <p className="text-yellow-300 font-medium">Pot rolls over to next game</p>
-                <p className="text-2xl font-bold text-white">${totalPot.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totalPot)}</p>
             </div>
         )}
 
