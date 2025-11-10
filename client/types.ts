@@ -1,6 +1,8 @@
 
 export enum View {
-  SETUP = 'setup',
+  SESSION_SETUP = 'session_setup',
+  SESSION_LOGIN = 'session_login',
+  GAME_SETUP = 'game_setup',
   FINALIZE = 'finalize',
   HISTORY = 'history',
   LEDGER = 'ledger'
@@ -18,6 +20,11 @@ export enum OutcomeType {
   DRAW = 'draw'
 }
 
+export interface PlayerOutcome {
+  name: string;
+  amount: number;
+}
+
 export interface Game {
   id: string;
   players: string[];
@@ -28,6 +35,8 @@ export interface Game {
   winner?: string;
   penalizedPlayers?: string[];
   notes?: string;
+  potWon: number;
+  outcomes: PlayerOutcome[];
 }
 
 export interface GameOutcome {
@@ -39,4 +48,30 @@ export interface GameOutcome {
 
 export interface PlayerLedger {
   [playerName: string]: number;
+}
+
+export interface Session {
+  id: number;
+  session_name: string;
+  session_code: string;
+  creator_name: string;
+  created_at: string;
+}
+
+export interface SessionAuth {
+  isAuthenticated: boolean;
+  isCreator: boolean;
+  session: Session | null;
+  sessionCode: string | null;
+}
+
+export interface CreateSessionData {
+  sessionName: string;
+  creatorName: string;
+  creatorPassword: string;
+}
+
+export interface LoginData {
+  creatorName: string;
+  creatorPassword: string;
 }

@@ -2,17 +2,31 @@
 DROP TABLE IF EXISTS ledger_entries;
 DROP TABLE IF EXISTS games;
 DROP TABLE IF EXISTS players;
+DROP TABLE IF EXISTS sessions;
 
--- players: Stores a unique entry for each player name.
-CREATE TABLE players (
+-- sessions: Stores Chinese poker game sessions that can be shared via URL
+CREATE TABLE sessions (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) UNIQUE NOT NULL,
+    session_name VARCHAR(255) NOT NULL,
+    session_code VARCHAR(50) UNIQUE NOT NULL, -- Used in shareable URLs
+    creator_name VARCHAR(255) NOT NULL,
+    creator_password_hash VARCHAR(255) NOT NULL, -- Hashed password for creator access
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- games: Represents a single game session.
+-- players: Stores a unique entry for each player name per session.
+CREATE TABLE players (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(session_id, name) -- Unique within each session, but can repeat across sessions
+);
+
+-- games: Represents a single game within a session.
 CREATE TABLE games (
     id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     buy_in_amount NUMERIC(10, 2) NOT NULL,
     pot_rollover NUMERIC(10, 2) DEFAULT 0,
     status VARCHAR(50) DEFAULT 'in_progress' NOT NULL, -- e.g., 'in_progress', 'completed', 'draw'
@@ -32,5 +46,8 @@ CREATE TABLE ledger_entries (
 );
 
 -- Create indexes for faster lookups on foreign keys
-CREATE INDEX ON ledger_entries (game_id);
-CREATE INDEX ON ledger_entries (player_id);
+CREATE INDEX idx_players_session ON players (session_id);
+CREATE INDEX idx_games_session ON games (session_id);
+CREATE INDEX idx_ledger_entries_game ON ledger_entries (game_id);
+CREATE INDEX idx_ledger_entries_player ON ledger_entries (player_id);
+CREATE INDEX idx_sessions_code ON sessions (session_code); -- For URL lookups
