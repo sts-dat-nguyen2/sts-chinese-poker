@@ -10,10 +10,12 @@ import GameFinalization from './components/GameFinalization';
 import GameHistory from './components/GameHistory';
 import PlayerLedgerComponent from './components/PlayerLedger';
 import Header from './components/Header';
+import TipModal from './components/TipModal';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.SESSION_SETUP);
   const [lastPlayers, setLastPlayers] = useState<string[]>([]);
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
   const {
     sessionAuth,
@@ -32,11 +34,14 @@ const App: React.FC = () => {
     playerLedger,
     potRollover,
     completedGames,
+    tipHistory,
     isLoading: gameLoading,
     error: gameError,
     clearError: clearGameError,
     createGame,
     finalizeGame,
+    revertGame,
+    createTip,
     refreshData,
   } = useGameState(sessionAuth.sessionCode, sessionAuth.isCreator);
 
@@ -138,6 +143,16 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSendTip = async (fromPlayer: string, toPlayer: string, amount: number) => {
+    try {
+      clearGameError();
+      await createTip(fromPlayer, toPlayer, amount);
+    } catch (err) {
+      // Error handled by useGameState
+      throw err;
+    }
+  };
+
   const renderView = () => {
     switch (currentView) {
       case View.SESSION_SETUP:
@@ -185,7 +200,7 @@ const App: React.FC = () => {
         return null;
 
       case View.HISTORY:
-        return <GameHistory games={completedGames} />;
+        return <GameHistory games={completedGames} tips={tipHistory} isCreator={sessionAuth.isCreator} onRevertGame={revertGame} />;
 
       case View.LEDGER:
         return (
@@ -218,6 +233,7 @@ const App: React.FC = () => {
               onNavigate={setCurrentView}
               onReset={handleResetData}
               onNewGame={handleStartNewGame}
+              onTip={() => setIsTipModalOpen(true)}
               isGameInProgress={!!currentGame}
               isCreator={sessionAuth.isCreator}
               sessionName={sessionAuth.session?.session_name}
@@ -227,6 +243,12 @@ const App: React.FC = () => {
             <main className="mt-8">
               {renderView()}
             </main>
+            <TipModal
+              isOpen={isTipModalOpen}
+              onClose={() => setIsTipModalOpen(false)}
+              onSendTip={handleSendTip}
+              playerLedger={playerLedger}
+            />
           </>
         ) : (
           <main>

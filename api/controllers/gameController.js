@@ -318,15 +318,16 @@ const getSessionState = async (req, res) => {
     `;
     const { rows: currentGameRows } = await db.query(currentGameQuery, [sessionId]);
 
-    // Calculate player ledger
+    // Calculate player ledger (including both game-based and tip transactions)
     const ledgerQuery = `
       SELECT
         p.name,
         SUM(le.amount) as total
       FROM players p
       LEFT JOIN ledger_entries le ON p.id = le.player_id
-      JOIN games g ON le.game_id = g.id
-      WHERE p.session_id = $1 AND g.status IN ('completed', 'draw')
+      LEFT JOIN games g ON le.game_id = g.id
+      WHERE p.session_id = $1
+        AND (g.status IN ('completed', 'draw') OR le.game_id IS NULL)
       GROUP BY p.name
       ORDER BY total DESC
     `;
@@ -368,9 +369,174 @@ const getSessionState = async (req, res) => {
   }
 };
 
+// Revert/delete a game and all its ledger entries
+const revertGame = async (req, res) => {
+  const { sessionCode, gameId } = req.params;
+
+  try {
+    // Verify session and game exist
+    const gameQuery = `
+      SELECT g.*, s.id as session_id
+      FROM games g
+      JOIN sessions s ON g.session_id = s.id
+      WHERE g.id = $1 AND s.session_code = $2
+    `;
+    const { rows: gameRows } = await db.query(gameQuery, [gameId, sessionCode]);
+
+    if (gameRows.length === 0) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    await db.query('BEGIN');
+
+    // Delete the game (CASCADE will automatically delete all ledger_entries)
+    await db.query('DELETE FROM games WHERE id = $1', [gameId]);
+
+    await db.query('COMMIT');
+
+    res.json({
+      message: 'Game reverted successfully',
+      gameId: gameId
+    });
+  } catch (error) {
+    await db.query('ROLLBACK');
+    console.error('Database Error:', error);
+    res.status(500).json({ error: 'Failed to revert game' });
+  }
+};
+
+// Create a tip from one player to another
+const createTip = async (req, res) => {
+  const { sessionCode } = req.params;
+  const { fromPlayer, toPlayer, amount } = req.body;
+
+  if (!fromPlayer || !toPlayer || !amount) {
+    return res.status(400).json({
+      error: 'fromPlayer, toPlayer, and amount are required'
+    });
+  }
+
+  if (fromPlayer === toPlayer) {
+    return res.status(400).json({
+      error: 'Cannot tip yourself'
+    });
+  }
+
+  if (amount <= 0) {
+    return res.status(400).json({
+      error: 'Amount must be greater than zero'
+    });
+  }
+
+  try {
+    // Get session ID
+    const sessionQuery = 'SELECT id FROM sessions WHERE session_code = $1';
+    const { rows: sessionRows } = await db.query(sessionQuery, [sessionCode]);
+
+    if (sessionRows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const sessionId = sessionRows[0].id;
+
+    await db.query('BEGIN');
+
+    // Get or create fromPlayer
+    const fromPlayerQuery = `
+      INSERT INTO players (session_id, name)
+      VALUES ($1, $2)
+      ON CONFLICT (session_id, name) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id
+    `;
+    const { rows: fromPlayerRows } = await db.query(fromPlayerQuery, [sessionId, fromPlayer]);
+    const fromPlayerId = fromPlayerRows[0].id;
+
+    // Get or create toPlayer
+    const toPlayerQuery = `
+      INSERT INTO players (session_id, name)
+      VALUES ($1, $2)
+      ON CONFLICT (session_id, name) DO UPDATE SET name = EXCLUDED.name
+      RETURNING id
+    `;
+    const { rows: toPlayerRows } = await db.query(toPlayerQuery, [sessionId, toPlayer]);
+    const toPlayerId = toPlayerRows[0].id;
+
+    // Create tip_sent entry (negative amount for sender)
+    await db.query(
+      'INSERT INTO ledger_entries (game_id, player_id, amount, entry_type) VALUES ($1, $2, $3, $4)',
+      [null, fromPlayerId, -amount, 'tip_sent']
+    );
+
+    // Create tip_received entry (positive amount for receiver)
+    await db.query(
+      'INSERT INTO ledger_entries (game_id, player_id, amount, entry_type) VALUES ($1, $2, $3, $4)',
+      [null, toPlayerId, amount, 'tip_received']
+    );
+
+    await db.query('COMMIT');
+
+    res.status(201).json({
+      message: 'Tip created successfully',
+      fromPlayer,
+      toPlayer,
+      amount
+    });
+  } catch (error) {
+    await db.query('ROLLBACK');
+    console.error('Database Error:', error);
+    res.status(500).json({ error: 'Failed to create tip' });
+  }
+};
+
+// Get tip history for a session
+const getTipHistory = async (req, res) => {
+  const { sessionCode } = req.params;
+
+  try {
+    // Get session ID
+    const sessionQuery = 'SELECT id FROM sessions WHERE session_code = $1';
+    const { rows: sessionRows } = await db.query(sessionQuery, [sessionCode]);
+
+    if (sessionRows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const sessionId = sessionRows[0].id;
+
+    // Get all tips (ledger entries with NULL game_id)
+    const query = `
+      SELECT
+        le_from.created_at,
+        p_from.name as from_player,
+        p_to.name as to_player,
+        le_to.amount
+      FROM ledger_entries le_from
+      JOIN players p_from ON le_from.player_id = p_from.id
+      JOIN ledger_entries le_to ON le_from.created_at = le_to.created_at
+        AND le_from.amount = -le_to.amount
+        AND le_from.entry_type = 'tip_sent'
+        AND le_to.entry_type = 'tip_received'
+      JOIN players p_to ON le_to.player_id = p_to.id
+      WHERE p_from.session_id = $1
+        AND le_from.game_id IS NULL
+        AND le_to.game_id IS NULL
+      ORDER BY le_from.created_at DESC
+    `;
+
+    const { rows } = await db.query(query, [sessionId]);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Database Error:', error);
+    res.status(500).json({ error: 'Failed to fetch tip history' });
+  }
+};
+
 module.exports = {
   getGameHistory,
   createGame,
   finalizeGame,
-  getSessionState
+  getSessionState,
+  revertGame,
+  createTip,
+  getTipHistory
 };

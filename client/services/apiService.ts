@@ -62,6 +62,12 @@ export interface FinalizeGameRequest {
   notes?: string;
 }
 
+export interface CreateTipRequest {
+  fromPlayer: string;
+  toPlayer: string;
+  amount: number;
+}
+
 export interface SessionState {
   currentGame: any | null;
   playerLedger: { [playerName: string]: number };
@@ -85,6 +91,13 @@ export interface GameHistoryItem {
   notes?: string;
   penalizedPlayers?: string[];
   outcomes: PlayerOutcome[];
+}
+
+export interface TipHistoryItem {
+  created_at: string;
+  from_player: string;
+  to_player: string;
+  amount: number;
 }
 
 // API Error class
@@ -174,6 +187,30 @@ export const gameApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
     });
+    return handleResponse(response);
+  },
+
+  // Revert/delete a game
+  async revertGame(sessionCode: string, gameId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/games/${sessionCode}/${gameId}`, {
+      method: 'DELETE',
+    });
+    return handleResponse(response);
+  },
+
+  // Create a tip from one player to another
+  async createTip(sessionCode: string, request: CreateTipRequest): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/games/${sessionCode}/tip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    return handleResponse(response);
+  },
+
+  // Get tip history
+  async getTipHistory(sessionCode: string): Promise<TipHistoryItem[]> {
+    const response = await fetch(`${API_BASE_URL}/games/${sessionCode}/tips`);
     return handleResponse(response);
   },
 };
