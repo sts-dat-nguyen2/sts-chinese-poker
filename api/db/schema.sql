@@ -21,12 +21,13 @@ CREATE TABLE games (
 );
 
 -- ledger_entries: The core financial transaction log for every monetary movement.
+-- game_id can be NULL for non-game transactions like tips
 CREATE TABLE ledger_entries (
     id SERIAL PRIMARY KEY,
-    game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
     player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
     amount NUMERIC(10, 2) NOT NULL,
-    entry_type VARCHAR(50) NOT NULL, -- e.g., 'buy_in', 'win', 'penalty_paid', 'penalty_received'
+    entry_type VARCHAR(50) NOT NULL, -- e.g., 'buy_in', 'win', 'penalty_paid', 'penalty_received', 'tip_sent', 'tip_received'
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1,116 +1,260 @@
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Game, PlayerLedger, View, GameOutcome, GameStatus } from './types';
-import useLocalStorage from './hooks/useLocalStorage';
+import React, { useState, useEffect } from 'react';
+import { View, GameOutcome, CreateSessionData, LoginData } from './types';
+import { useSession } from './hooks/useSession';
+import { useGameState } from './hooks/useGameState';
+import SessionSetup from './components/SessionSetup';
+import SessionLogin from './components/SessionLogin';
 import GameSetup from './components/GameSetup';
 import GameFinalization from './components/GameFinalization';
 import GameHistory from './components/GameHistory';
 import PlayerLedgerComponent from './components/PlayerLedger';
 import Header from './components/Header';
-import { calculateLedger, calculateRollover } from './services/ledgerService';
+import TipModal from './components/TipModal';
 
 const App: React.FC = () => {
-  const [games, setGames] = useLocalStorage<Game[]>('gameNightLedger:games', []);
-  const [currentView, setCurrentView] = useState<View>(View.SETUP);
-  const [currentGame, setCurrentGame] = useState<Game | null>(null);
-  const [lastPlayers, setLastPlayers] = useLocalStorage<string[]>('gameNightLedger:lastPlayers', []);
+  const [currentView, setCurrentView] = useState<View>(View.SESSION_SETUP);
+  const [lastPlayers, setLastPlayers] = useState<string[]>([]);
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
-  const potRollover = useMemo(() => calculateRollover(games), [games]);
-  const playerLedger: PlayerLedger = useMemo(() => calculateLedger(games), [games]);
-  
-  const completedGames = useMemo(() => games.filter(g => g.status !== GameStatus.IN_PROGRESS).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [games]);
+  const {
+    sessionAuth,
+    isLoading: sessionLoading,
+    error: sessionError,
+    clearError: clearSessionError,
+    loadSession,
+    createSession,
+    authenticateCreator,
+    viewAsGuest,
+    logout,
+  } = useSession();
 
+  const {
+    currentGame,
+    playerLedger,
+    potRollover,
+    completedGames,
+    tipHistory,
+    isLoading: gameLoading,
+    error: gameError,
+    clearError: clearGameError,
+    createGame,
+    finalizeGame,
+    revertGame,
+    createTip,
+    refreshData,
+  } = useGameState(sessionAuth.sessionCode, sessionAuth.isCreator);
+
+  const isLoading = sessionLoading || gameLoading;
+  const error = sessionError || gameError;
+
+  // Determine initial view based on session state
   useEffect(() => {
-    // If all games are deleted, reset to the setup screen
-    const activeGame = games.find(g => g.id === currentGame?.id);
-    if (games.length === 0) {
-      setCurrentView(View.SETUP);
-      setCurrentGame(null);
-    } else if (currentGame && !activeGame) {
-      // If the current game in progress was deleted (e.g. via reset), go back to setup
-      setCurrentView(View.SETUP);
-      setCurrentGame(null);
+    if (sessionAuth.session && !sessionAuth.isAuthenticated) {
+      setCurrentView(View.SESSION_LOGIN);
+    } else if (sessionAuth.isAuthenticated && currentGame) {
+      setCurrentView(View.FINALIZE);
+    } else if (sessionAuth.isAuthenticated) {
+      if (sessionAuth.isCreator && completedGames.length === 0) {
+        setCurrentView(View.GAME_SETUP);
+      } else {
+        setCurrentView(View.LEDGER);
+      }
+    } else {
+      setCurrentView(View.SESSION_SETUP);
     }
-  }, [games, currentGame]);
+  }, [sessionAuth, currentGame, completedGames.length]);
 
-  const handleStartGame = useCallback((players: string[], buyIn: number) => {
-    setLastPlayers(players);
-    const newGame: Game = {
-      id: Date.now().toString(),
-      players,
-      buyInAmount: buyIn,
-      potRollover,
-      status: GameStatus.IN_PROGRESS,
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentGame(newGame);
-    setGames(prevGames => [...prevGames, newGame]);
-    setCurrentView(View.FINALIZE);
-  }, [potRollover, setGames, setLastPlayers]);
+  const handleCreateSession = async (sessionData: CreateSessionData) => {
+    try {
+      clearSessionError();
+      await createSession(sessionData);
+      // Let the useEffect handle setting the view to LEDGER
+    } catch (err) {
+      // Error is handled by useSession hook
+    }
+  };
 
-  const handleFinalizeGame = useCallback((outcome: GameOutcome) => {
+  const handleJoinSession = async (sessionCode: string) => {
+    try {
+      clearSessionError();
+      await loadSession(sessionCode);
+    } catch (err) {
+      // Error is handled by useSession hook
+    }
+  };
+
+  const handleLogin = async (loginData: LoginData) => {
+    try {
+      clearSessionError();
+      await authenticateCreator(loginData);
+      // Let the useEffect handle setting the view to LEDGER
+    } catch (err) {
+      // Error is handled by useSession hook
+    }
+  };
+
+  const handleViewAsGuest = () => {
+    viewAsGuest();
+    setCurrentView(View.LEDGER);
+  };
+
+  const handleStartGame = async (players: string[], buyIn: number) => {
+    try {
+      clearGameError();
+      setLastPlayers(players);
+      await createGame(players, buyIn);
+      setCurrentView(View.FINALIZE);
+    } catch (err) {
+      // Error is handled by useGameState hook
+    }
+  };
+
+  const handleFinalizeGame = async (outcome: GameOutcome) => {
     if (!currentGame) return;
 
-    setGames(prevGames =>
-      prevGames.map(game =>
-        game.id === currentGame.id ? { ...game, ...outcome } : game
-      )
-    );
-    setCurrentGame(null);
-    setCurrentView(View.HISTORY);
-  }, [currentGame, setGames]);
-  
-  const handleStartNewGame = useCallback(() => {
-    const inProgressGame = games.find(g => g.status === GameStatus.IN_PROGRESS);
-    if (inProgressGame) {
-      setCurrentGame(inProgressGame);
+    try {
+      clearGameError();
+      await finalizeGame(parseInt(currentGame.id), outcome);
+      setCurrentView(View.LEDGER); // Auto-redirect to ledger after finalization
+    } catch (err) {
+      // Error is handled by useGameState hook
+    }
+  };
+  const handleStartNewGame = () => {
+    if (currentGame) {
       setCurrentView(View.FINALIZE);
     } else {
-      setCurrentGame(null);
-      setCurrentView(View.SETUP);
+      setCurrentView(View.GAME_SETUP);
     }
-  }, [games]);
+  };
 
-  const handleResetData = useCallback(() => {
+  const handleResetData = async () => {
+    if (!sessionAuth.isCreator || !sessionAuth.session) return;
+
     if (window.confirm('Are you sure you want to delete all game history and player ledgers? This action cannot be undone.')) {
-      setGames([]);
-      setCurrentGame(null);
-      setCurrentView(View.SETUP);
+      try {
+        // We'll need creator credentials for this - for now, just refresh
+        await refreshData();
+        setCurrentView(View.GAME_SETUP);
+      } catch (err) {
+        // Error handled by useGameState
+      }
     }
-  }, [setGames]);
+  };
+
+  const handleSendTip = async (fromPlayer: string, toPlayer: string, amount: number) => {
+    try {
+      clearGameError();
+      await createTip(fromPlayer, toPlayer, amount);
+    } catch (err) {
+      // Error handled by useGameState
+      throw err;
+    }
+  };
 
   const renderView = () => {
     switch (currentView) {
-      case View.HISTORY:
-        return <GameHistory games={completedGames} />;
-      case View.LEDGER:
-        return <PlayerLedgerComponent ledger={playerLedger} />;
+      case View.SESSION_SETUP:
+        return (
+          <SessionSetup
+            onCreateSession={handleCreateSession}
+            onJoinSession={handleJoinSession}
+            isLoading={isLoading}
+            error={error}
+          />
+        );
+
+      case View.SESSION_LOGIN:
+        if (!sessionAuth.session) {
+          setCurrentView(View.SESSION_SETUP);
+          return null;
+        }
+        return (
+          <SessionLogin
+            session={sessionAuth.session}
+            onLogin={handleLogin}
+            onViewAsGuest={handleViewAsGuest}
+            isLoading={isLoading}
+            error={error}
+          />
+        );
+
+      case View.GAME_SETUP:
+        return (
+          <GameSetup
+            onStartGame={handleStartGame}
+            potRollover={potRollover}
+            lastPlayers={lastPlayers}
+            isLoading={isLoading}
+            error={error}
+          />
+        );
+
       case View.FINALIZE:
         if (currentGame) {
           return <GameFinalization game={currentGame} onFinalize={handleFinalizeGame} />;
         }
         // Fallback if there is no current game
-        setCurrentView(View.SETUP);
-        return <GameSetup onStartGame={handleStartGame} potRollover={potRollover} lastPlayers={lastPlayers} />;
-      case View.SETUP:
+        setCurrentView(View.GAME_SETUP);
+        return null;
+
+      case View.HISTORY:
+        return <GameHistory games={completedGames} tips={tipHistory} isCreator={sessionAuth.isCreator} onRevertGame={revertGame} />;
+
+      case View.LEDGER:
+        return (
+          <PlayerLedgerComponent
+            ledger={playerLedger}
+            isCreator={sessionAuth.isCreator}
+            sessionName={sessionAuth.session?.session_name}
+          />
+        );
+
       default:
-        return <GameSetup onStartGame={handleStartGame} potRollover={potRollover} lastPlayers={lastPlayers} />;
+        return (
+          <SessionSetup
+            onCreateSession={handleCreateSession}
+            onJoinSession={handleJoinSession}
+            isLoading={isLoading}
+            error={error}
+          />
+        );
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
       <div className="container mx-auto p-4 md:p-8">
-        <Header 
-          activeView={currentView} 
-          onNavigate={setCurrentView} 
-          onReset={handleResetData}
-          onNewGame={handleStartNewGame}
-          isGameInProgress={!!games.find(g => g.status === GameStatus.IN_PROGRESS)}
-        />
-        <main className="mt-8">
-          {renderView()}
-        </main>
+        {sessionAuth.isAuthenticated ? (
+          <>
+            <Header
+              activeView={currentView}
+              onNavigate={setCurrentView}
+              onReset={handleResetData}
+              onNewGame={handleStartNewGame}
+              onTip={() => setIsTipModalOpen(true)}
+              isGameInProgress={!!currentGame}
+              isCreator={sessionAuth.isCreator}
+              sessionName={sessionAuth.session?.session_name}
+              sessionCode={sessionAuth.sessionCode}
+              onLogout={logout}
+            />
+            <main className="mt-8">
+              {renderView()}
+            </main>
+            <TipModal
+              isOpen={isTipModalOpen}
+              onClose={() => setIsTipModalOpen(false)}
+              onSendTip={handleSendTip}
+              playerLedger={playerLedger}
+            />
+          </>
+        ) : (
+          <main>
+            {renderView()}
+          </main>
+        )}
       </div>
     </div>
   );
